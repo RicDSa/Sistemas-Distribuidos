@@ -1,8 +1,10 @@
 Compilar ficheiros java
+
 javac ds/assign/p2p/*.java
 
 
 Inicializar Peers
+
 java ds.assign.p2p.Peer localhost 10000 localhost 20000
 
 java ds.assign.p2p.Peer localhost 20000 localhost 40000 localhost 10000 localhost 30000 
