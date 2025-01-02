@@ -1,4 +1,4 @@
-package ds.assign.p2p;
+package ds.assign.tom;
 
 import java.util.Random;
 
@@ -97,6 +97,12 @@ public final class PoissonProcess {
             s = s + p;
         }
         return n;
+    }
+
+    public double nextEvent() {
+        double eventTime = -Math.log(1.0 - rng.nextDouble()) / lambda;
+        // Simulate getting a random word (for example purposes, returning a static word)
+        return eventTime ;
     }
 
 }
