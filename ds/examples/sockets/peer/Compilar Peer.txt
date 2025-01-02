@@ -1,0 +1,9 @@
+Compilar Peer:
+
+javac ds/examples/sockets/peer/*.java
+
+1º Peer
+java ds.examples.sockets.peer.Peer localhost 2000
+
+2º Peer
+java ds.examples.sockets.peer.Peer localhost 2001
