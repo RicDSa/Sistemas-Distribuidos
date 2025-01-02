@@ -12,15 +12,11 @@ public class SyncronizedRequest implements Runnable{
 
     private PoissonProcess poissonProcess = null;
 
-    //Info do peer de Origem
-    private final String host;
-    private final int localport;
-    private final Logger logger;
+    private String host;
+    private int localport;
+    private Logger logger;
 
-    //Info do Peer de Destino    
-    private int destinationPort;
-    private String destinationHost;
-    private final PeerConnection vizinhoInfo;
+    private PeerConnection vizinhoInfo;
 
     public SyncronizedRequest(String host, int localport, PeerConnection vizinhoInfo, Logger logger){
         this.host = host;
@@ -34,8 +30,27 @@ public class SyncronizedRequest implements Runnable{
         poissonProcess = new PoissonProcess(lambda, rng);
     }    
 
-    @Override
+    private void sendRequestToServer(String message) {
+        try {
+            String randomVizinho = vizinhoInfo.chooseRandomVizinho();
+            if (randomVizinho == null) {
+                return;
+            }
 
+            Scanner sc = new Scanner(randomVizinho).useDelimiter(":");
+            String destinationHost = sc.next();
+            int destinationPort = Integer.parseInt(sc.next());
+
+            Socket socket = new Socket(destinationHost, destinationPort);
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            out.println(message + "::" + vizinhoInfo.toString());
+            socket.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
     public void run(){
         logger.info("Started SyncronizedRequest on @" + localport);
 
@@ -43,56 +58,22 @@ public class SyncronizedRequest implements Runnable{
             double intervalTime = poissonProcess.timeForNextEvent() * 1000 * 60;
 
             try {
-                Thread.sleep((long)intervalTime);
-                
-                synchronized (vizinhoInfo){
-                    logger.info("DEBUG -> @" + localport + " vizinhos= " + vizinhoInfo.getVizinhos() );
+                Thread.sleep((long) intervalTime);
 
-                    //formato: "hostname:port"
-                    // escolhe um vizinho aleatório para sincronizar
-                    String n = vizinhoInfo.chooseRandomVizinho();
+                synchronized (vizinhoInfo) {
+                    logger.info("DEBUG -> @" + localport + " vizinhos= " + vizinhoInfo.getVizinhos());
 
-                    Scanner sc = new Scanner(n).useDelimiter(":");
-                    destinationHost = sc.next();
-                    destinationPort = Integer.parseInt(sc.next());
+                    // Send a synchronization request to a random neighbor
+                    sendRequestToServer("SYNC-DATA");
+
+                    // Print the number of peers in the updated map
+                    logger.info("Number of peers in the updated map: " + vizinhoInfo.getVizinhos().size());
+
                 }
-
-                // manda um request de sincronização para o Peer no Host e porta de destino
-                sendRequestToServer("SYNC-DATA");
             } catch (Exception e) {
                 e.printStackTrace(); 
             }
         }
     }
 
-
-    public void sendRequestToServer(String request) {
-
-        try {
-            /*
-            * faz a conexão
-            */
-           Socket socket = new Socket(InetAddress.getByName(destinationHost), destinationPort);
-
-           /*
-			* prepare socket output channel
-		    */
-           PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-
-           /*
-            * manda um request de sincronização
-            */
-
-           out.println(request + ":" + localport + ":" + host);
-           out.flush();
-
-           /*
-            * fecha a conexão
-            */
-           socket.close();
-
-        } catch (Exception e) {
-            logger.info("Server: error ocured while sending SYNC request to "+ destinationHost + " " + destinationPort);
-        }
-    }
 }

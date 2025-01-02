@@ -55,12 +55,10 @@ public class Peer {
 
         System.out.printf("New peer @ host=%s, port=%s%n", hostname, port);
 
-        //Inicializa o cliente para conexão com o vizinho,se configurado
-        if(args.length >= 4){
-            String nextHost = args[2];
-            int nextPort = Integer.parseInt(args[3]);
+        for (int i = 2; i < args.length; i += 2) {
+            String nextHost = args[i];
+            int nextPort = Integer.parseInt(args[i + 1]);
             peer.vizinhoInfo.addVizinho(nextPort, nextHost);
-            new Thread(new Client(peer, nextHost, nextPort)).start();
         }
 
         // Inicializa a sincronização de requests
@@ -107,42 +105,3 @@ class Server implements Runnable {
     }
 }
 
-class Client implements Runnable {
-    Peer peer;
-    String nextHost;
-    int nextPort;
-    Logger logger;
-
-    public Client(Peer peer, String nextHost, int nextPort) {
-        this.peer = peer;
-        this.nextHost = nextHost;
-        this.nextPort = nextPort;
-        this.logger = peer.logger;
-    }
-
-    @Override
-    public void run() {
-        while (true) {
-            try {
-                logger.info("Client connecting to " + nextHost + ":" + nextPort);
-                Socket socket = new Socket(InetAddress.getByName(nextHost), nextPort);
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-
-                // Send synchronization message
-                out.println("SYNC-DATA::" + peer.vizinhoInfo.toString());
-                out.flush();
-
-                socket.close();
-
-                // Pausa para evitar sobrecarga na comunicação
-                Thread.sleep(2000);
-            } catch (Exception e) {
-                peer.logger.warning("Client: Failed to connect to " + nextHost + ":" + nextPort);
-                try {
-                    Thread.sleep(2000); // Pausa antes de tentar novamente
-                } catch (InterruptedException ignored) {}
-            }
-        }
-    }
-
-}
