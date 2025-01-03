@@ -54,11 +54,9 @@ public class RequestGenerator implements Runnable{
                 //on the monitor object. Simply put, only one thread 
                 //per monitor object can execute inside that code block (to avoid adding the same request
                 //to the queue of the peer's server)
-                synchronized(server){
+                synchronized(request){
                     server.addOperations(request);
-
                 }
-
 
             }catch (Exception e){
                 e.printStackTrace(); 

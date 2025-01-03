@@ -15,16 +15,15 @@ import java.util.logging.SimpleFormatter;
 
 public class Peer {
     String host; // Hostname of the peer
-    String port; // Port number of the peer
+    int port; // Port number of the peer
     Logger logger; // Logger for logging events
-    volatile boolean hasToken; // Flag to indicate if the peer has the token
+    String Token; // Flag to indicate if the peer has the token
     private Server server; // Server instance for the peer
 
     // Constructor to initialize the peer
-    public Peer(String hostname, String port, boolean hasToken, String nextHost,int nextPort,String calcHost, int calcPort) {
+    public Peer(String hostname, int port, String nextHost,int nextPort,String calcHost, int calcPort) {
         this.host = hostname;
         this.port = port;
-        this.hasToken = hasToken;
         logger = Logger.getLogger("logfile");
 
         try {
@@ -43,7 +42,7 @@ public class Peer {
             new Thread(server).start();
 
              // Start the RequestGenerator thread
-            RequestGenerator requestGenerator = new RequestGenerator(hostname, Integer.parseInt(port), logger, server);
+            RequestGenerator requestGenerator = new RequestGenerator(hostname, port, logger, server);
             new Thread(requestGenerator).start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -57,20 +56,23 @@ public class Peer {
     }
 
     public static void main(String[] args) throws Exception {
-        // Determine if the peer has the token
-        boolean hasToken = args[2].equals("TOKEN");
+        if (args.length < 6) {
+            System.err.println("Usage: java ds.assign.trg.Peer <host> <port> <nextHost> <nextPort> <calcHost> <calcPort>");
+            System.exit(1);
+        }
         // Create a new peer instance
-        Peer peer = new Peer(args[0], args[1], hasToken, args[3],Integer.parseInt(args[4]), args[5], Integer.parseInt(args[6]));
-        System.out.printf("New peer @ host=%s, port=%s, hasToken=%s\n", args[0], args[1], hasToken);
+        Peer peer = new Peer(args[0], Integer.parseInt(args[1]), args[2],Integer.parseInt(args[3]), args[4], Integer.parseInt(args[5]));
+        System.out.printf("New peer @ host=%s, port=%s\n", args[0], Integer.parseInt(args[1]));
     }
 }
 
 class Server implements Runnable {
     Peer peer; // Reference to the peer
     ServerSocket server; // Server socket for the peer
+    String receivedToken;
 
     // Queue to store operations
-    private final Queue<String> operations = new LinkedList<>();
+    Queue<String> operations = new LinkedList<>();
 
     // Hostname and port of the next peer
     String nextHost;
@@ -83,7 +85,7 @@ class Server implements Runnable {
     // Constructor to initialize the server
     public Server(Peer peer, String nextHost, int nextPort, String calcHost, int calcPort) throws Exception {
         this.peer = peer;
-        this.server = new ServerSocket(Integer.parseInt(peer.port), 1, InetAddress.getByName(peer.host));
+        this.server = new ServerSocket(peer.port, 1, InetAddress.getByName(peer.host));
         this.nextHost = nextHost;
         this.nextPort = nextPort;
         this.calcHost = calcHost;
@@ -91,13 +93,13 @@ class Server implements Runnable {
     }
 
     // Method to add operations to the queue
-    public synchronized void addOperations(String operation) {
+    public void addOperations(String operation) {
         operations.add(operation);
         peer.logger.info("Server: Added operation to queue: " + operation);
     }
 
     // Method to get operations from the queue
-    public synchronized Queue<String> getOperations() {
+    public Queue<String> getOperations() {
         return operations;
     }
 
@@ -106,26 +108,30 @@ class Server implements Runnable {
         try {
             peer.logger.info("Server: running on port " + peer.port);
             while (true) {
-                if (peer.hasToken) {
-                    processOperations();
-                    passTokenToNextPeer();
-                }
 
-                //Aceita ligações para receber o Token
-                Socket client = server.accept();
-                BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-				//Recebe o token
-                String receivedToken = in.readLine();
+                try{
+                        //Aceita ligações para receber o Token
+                        Socket client = server.accept();
+                        BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                        //Recebe o token
+                        String receivedToken = in.readLine();
 
-                if ("TOKEN".equals(receivedToken)) {
-                    peer.logger.info("Server: Token received from client");
-                    synchronized (peer) {
-                        peer.hasToken = true; // Atualiza para indicar que o peer agora possui o token
+                        if (receivedToken.equals("TOKEN")) {
+                            peer.logger.info("server: received token");
+                            synchronized (peer) {
+                                processOperations();
+                                passTokenToNextPeer();
+                            }
+                        }
+
+                        client.close();
+                    } catch (Exception e) {
+                        peer.logger.warning("Timeout: Token was not received in given time limit.\nPeer will Shutdown ...");
+                        Thread.sleep(5000);
+                        System.exit(0); // Encerrar o programa ou tomar outra ação
                     }
-                }
-                client.close();
 
-            }
+                }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -139,7 +145,7 @@ class Server implements Runnable {
                 String request = operations.poll();
                 peer.logger.info("Server: Processing operation: " + request);
 
-                String result = connectToCalculatorMultiServer(calcHost,calcPort,request);
+                String result = connectToCalculatorMultiServer(calcHost, calcPort, request);
                 peer.logger.info("Server: Processed operation: " + request + ", Result: " + result);
 
                 if (result != null && !result.isEmpty()) {
@@ -154,6 +160,7 @@ class Server implements Runnable {
     // Método para passar o token para o próximo peer
     private void passTokenToNextPeer() {
         try {
+            peer.logger.info("Server: Preparing to pass the token to the next peer at " + nextHost + ":" + nextPort);
             Thread.sleep(5000); // Optional delay for visualization
             Socket socket = new Socket(InetAddress.getByName(nextHost), nextPort);
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -163,9 +170,9 @@ class Server implements Runnable {
             socket.close();
 
             peer.logger.info("Server: Token passed to " + nextHost + ":" + nextPort);
-            peer.hasToken = false;
         } catch (Exception e) {
             peer.logger.warning("Server: Failed to pass token to " + nextHost + ":" + nextPort);
+            e.printStackTrace();
         }
     }
 
